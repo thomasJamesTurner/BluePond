@@ -1,28 +1,45 @@
-use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream};
+use futures_util::{SinkExt, StreamExt};
+use tokio::time::{Duration, sleep};
+use tokio_tungstenite::{connect_async, tungstenite::Message};
 
-fn handle_client(mut stream: TcpStream) {
-    let mut buffer = [0; 1024];
-    stream
-        .read(&mut buffer)
-        .expect("Failed to Read from client");
-    let request = String::from_utf8_lossy(&buffer[..]);
-    println!("Recived request: {}", request);
-    let response = "Hello Client!".as_bytes();
-    stream.write(response).expect("Failed to write response");
-}
-fn main() {
-    let listener = TcpListener::bind("127.0.0.1:8080").expect("Failed to bind to entry point");
-    print!("Coneccted");
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let (socket, _) = connect_async("ws://127.0.0.1:3000/web_socket")
+        .await
+        .expect("Failed to connect");
 
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-                std::thread::spawn(|| handle_client(stream));
-            }
-            Err(e) => {
-                eprint!("Failed to establish connection: {}", e)
+    println!("Connected");
+
+    let (mut write, mut read) = socket.split();
+
+    let reader = tokio::spawn(async move {
+        while let Some(msg) = read.next().await {
+            match msg {
+                Ok(msg) => println!("Received: {}", msg),
+                Err(e) => {
+                    println!("Receive error: {}", e);
+                    break;
+                }
             }
         }
-    }
+    });
+
+    let writer = tokio::spawn(async move {
+        let mut count = 0;
+
+        loop {
+            let msg = format!("hello {}", count);
+
+            if let Err(e) = write.send(Message::Text(msg.into())).await {
+                println!("Send error: {}", e);
+                break;
+            }
+
+            count += 1;
+
+            sleep(Duration::from_secs(1)).await;
+        }
+    });
+
+    let _ = tokio::join!(reader, writer);
 }
