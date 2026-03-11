@@ -1,4 +1,5 @@
 use futures_util::{SinkExt, StreamExt};
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::TcpListener;
 use tokio::time::{Duration, sleep};
 use tokio_tungstenite::{accept_async, connect_async, tungstenite::Message};
@@ -22,11 +23,24 @@ async fn main() {
 
                 while let Some(msg) = read.next().await {
                     match msg {
-                        Ok(msg) => {
-                            println!("Server received: {}", msg);
-                            // Echo it back
-                            write.send(msg).await.unwrap();
+                        Ok(Message::Text(text)) => {
+                            println!("Server received: {}", text);
+                            write.send(Message::Text(text)).await.unwrap();
                         }
+                        Ok(Message::Binary(bin)) => {
+                            println!("Server received: {:?}", bin);
+                            write.send(Message::Binary(bin)).await.unwrap();
+                        }
+                        Ok(Message::Close(_)) => {
+                            println!("Client disconnected");
+                            break;
+                        }
+                        Ok(Message::Ping(data)) => {
+                            println!("Server received ping");
+                            write.send(Message::Pong(data)).await.unwrap(); // Ping should reply with Pong, not echo the Ping back
+                        }
+                        Ok(Message::Pong(_)) => {}
+                        Ok(_) => {} // Handle any other variants to satisfy exhaustiveness
                         Err(e) => {
                             println!("Server error: {}", e);
                             break;
@@ -39,11 +53,10 @@ async fn main() {
 
     // Give the server a moment to start
     sleep(Duration::from_millis(100)).await;
-    let (socket, _) = connect_async("ws://127.0.0.1:9001/web_socket")
-        .await
-        .expect("Failed to connect");
+    let sender_ip = "ws://127.0.0.1:9001/web_socket";
+    let (socket, _) = connect_async(sender_ip).await.expect("Failed to connect");
 
-    println!("Connected");
+    println!("Connected to: {}", sender_ip);
 
     let (mut write, mut read) = socket.split();
 
@@ -63,16 +76,13 @@ async fn main() {
         let mut count = 0;
 
         loop {
-            let msg = format!("hello {}", count);
+            let stdin = tokio::io::stdin();
+            let mut reader = BufReader::new(stdin).lines();
 
-            if let Err(e) = write.send(Message::Text(msg.into())).await {
-                println!("Send error: {}", e);
-                break;
+            while let Ok(Some(line)) = reader.next_line().await {
+                // do something with `line`, e.g. send it over the websocket
+                write.send(Message::Text(line.into())).await.unwrap();
             }
-
-            count += 1;
-
-            sleep(Duration::from_secs(1)).await;
         }
     });
 
