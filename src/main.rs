@@ -1,5 +1,5 @@
 use futures_util::{SinkExt, StreamExt};
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{self, AsyncBufReadExt, BufReader};
 use tokio::net::TcpListener;
 use tokio::time::{Duration, sleep};
 use tokio_tungstenite::{accept_async, connect_async, tungstenite::Message};
@@ -73,16 +73,11 @@ async fn main() {
     });
 
     let writer = tokio::spawn(async move {
-        let mut count = 0;
+        let stdin = io::stdin();
+        let mut reader = BufReader::new(stdin).lines();
 
-        loop {
-            let stdin = tokio::io::stdin();
-            let mut reader = BufReader::new(stdin).lines();
-
-            while let Ok(Some(line)) = reader.next_line().await {
-                // do something with `line`, e.g. send it over the websocket
-                write.send(Message::Text(line.into())).await.unwrap();
-            }
+        while let Ok(Some(line)) = reader.next_line().await {
+            write.send(Message::Text(line.into())).await.unwrap();
         }
     });
 
