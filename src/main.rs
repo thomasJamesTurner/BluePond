@@ -19,7 +19,7 @@ fn read_input(prompt: &str) -> String {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    let ip = read_input("Input Current ip: ");
+    let ip = "0.0.0.0";
     let port = read_input("Input Current port: ");
 
     let receiver_addr = format!("{}:{}", ip, port);
@@ -45,11 +45,11 @@ async fn main() {
                 while let Some(msg) = read.next().await {
                     match msg {
                         Ok(Message::Text(text)) => {
-                            println!("You sent: {}", text);
+                            println!("Received: {}", text);
                             write.send(Message::Text(text)).await.unwrap();
                         }
                         Ok(Message::Binary(bin)) => {
-                            println!("You sent: {:?}", bin);
+                            println!("Received: {:?}", bin);
                             write.send(Message::Binary(bin)).await.unwrap();
                         }
                         Ok(Message::Close(_)) => {
@@ -57,7 +57,7 @@ async fn main() {
                             break;
                         }
                         Ok(Message::Ping(data)) => {
-                            println!("You sent a ping");
+                            println!("Received a ping");
                             write.send(Message::Pong(data)).await.unwrap(); // Ping should reply with Pong, not echo the Ping back
                         }
                         Ok(Message::Pong(_)) => {}
@@ -91,9 +91,9 @@ async fn main() {
     let reader = tokio::spawn(async move {
         while let Some(msg) = read.next().await {
             match msg {
-                Ok(msg) => println!("Received: {}", msg),
+                Ok(msg) => println!("sent: {}", msg),
                 Err(e) => {
-                    println!("Receive error: {}", e);
+                    println!("sent error: {}", e);
                     break;
                 }
             }
