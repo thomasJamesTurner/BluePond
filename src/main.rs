@@ -74,12 +74,17 @@ async fn main() {
 
     // Give the server a moment to start
     sleep(Duration::from_millis(100)).await;
-    let transmitter_ip = "ws://127.0.0.1:9001/web_socket";
-    let (socket, _) = connect_async(transmitter_ip)
+
+    let ip = read_input("Input Current ip: ");
+    let port = read_input("Input Current port: ");
+
+    let transmitter_addr = format!("ws://{}:{}/web_socket", ip, port);
+
+    let (socket, _) = connect_async(transmitter_addr)
         .await
         .expect("Failed to connect");
 
-    println!("Connected to: {}", transmitter_ip);
+    println!("Connected to: {}:{}", ip, port);
 
     let (mut write, mut read) = socket.split();
 
