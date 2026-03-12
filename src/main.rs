@@ -1,4 +1,5 @@
 use futures_util::{SinkExt, StreamExt};
+use std::io::Write;
 use tokio::io::{self, AsyncBufReadExt, BufReader};
 use tokio::net::TcpListener;
 use tokio::time::{Duration, sleep};
@@ -6,13 +7,28 @@ use tokio_tungstenite::{accept_async, connect_async, tungstenite::Message};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    // --- SERVER ---
+    print!("Input Recipient ip: ");
+    std::io::stdout().flush().unwrap();
+    let mut receiver_ip = String::new();
+    let stdio = std::io::stdin();
+    match stdio.read_line(&mut receiver_ip) {
+        Ok(n) => {
+            println!("{n} bytes read");
+        }
+        Err(error) => {
+            print!("error: {}", error)
+        }
+    };
+    let receiver_ip = receiver_ip.trim().to_string();
+    // --- Recipient ---
     tokio::spawn(async move {
-        let receiver_ip = "127.0.0.1:9001";
-        let listener = TcpListener::bind(receiver_ip)
+        let listener = TcpListener::bind(receiver_ip.as_str())
             .await
             .expect("Failed to bind to entry point");
-        println!("Server listening on ws://{}/web_socket", receiver_ip);
+        println!(
+            "Recipient listening on ws://{}/web_socket",
+            receiver_ip.as_str()
+        );
 
         while let Ok((stream, _)) = listener.accept().await {
             tokio::spawn(async move {
@@ -24,11 +40,11 @@ async fn main() {
                 while let Some(msg) = read.next().await {
                     match msg {
                         Ok(Message::Text(text)) => {
-                            println!("Server received: {}", text);
+                            println!("You sent: {}", text);
                             write.send(Message::Text(text)).await.unwrap();
                         }
                         Ok(Message::Binary(bin)) => {
-                            println!("Server received: {:?}", bin);
+                            println!("You sent: {:?}", bin);
                             write.send(Message::Binary(bin)).await.unwrap();
                         }
                         Ok(Message::Close(_)) => {
@@ -36,13 +52,13 @@ async fn main() {
                             break;
                         }
                         Ok(Message::Ping(data)) => {
-                            println!("Server received ping");
+                            println!("You sent a ping");
                             write.send(Message::Pong(data)).await.unwrap(); // Ping should reply with Pong, not echo the Ping back
                         }
                         Ok(Message::Pong(_)) => {}
                         Ok(_) => {} // Handle any other variants to satisfy exhaustiveness
                         Err(e) => {
-                            println!("Server error: {}", e);
+                            println!("Recipient error: {}", e);
                             break;
                         }
                     }
