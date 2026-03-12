@@ -5,29 +5,34 @@ use tokio::net::TcpListener;
 use tokio::time::{Duration, sleep};
 use tokio_tungstenite::{accept_async, connect_async, tungstenite::Message};
 
+fn read_input(prompt: &str) -> String {
+    print!("{}", prompt);
+    std::io::stdout().flush().unwrap();
+
+    let mut input = String::new();
+    std::io::stdin()
+        .read_line(&mut input)
+        .expect("Failed to read line");
+
+    input.trim().to_string()
+}
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    print!("Input Recipient ip: ");
-    std::io::stdout().flush().unwrap();
-    let mut receiver_ip = String::new();
-    let stdio = std::io::stdin();
-    match stdio.read_line(&mut receiver_ip) {
-        Ok(n) => {
-            println!("{n} bytes read");
-        }
-        Err(error) => {
-            print!("error: {}", error)
-        }
-    };
-    let receiver_ip = receiver_ip.trim().to_string();
+    let ip = read_input("Input Current ip: ");
+    let port = read_input("Input Current port: ");
+
+    let receiver_addr = format!("{}:{}", ip, port);
+
+    println!("Receiver address: {}", receiver_addr);
     // --- Recipient ---
     tokio::spawn(async move {
-        let listener = TcpListener::bind(receiver_ip.as_str())
+        let listener = TcpListener::bind(receiver_addr.as_str())
             .await
             .expect("Failed to bind to entry point");
         println!(
             "Recipient listening on ws://{}/web_socket",
-            receiver_ip.as_str()
+            receiver_addr.as_str()
         );
 
         while let Ok((stream, _)) = listener.accept().await {
@@ -69,10 +74,12 @@ async fn main() {
 
     // Give the server a moment to start
     sleep(Duration::from_millis(100)).await;
-    let sender_ip = "ws://127.0.0.1:9001/web_socket";
-    let (socket, _) = connect_async(sender_ip).await.expect("Failed to connect");
+    let transmitter_ip = "ws://127.0.0.1:9001/web_socket";
+    let (socket, _) = connect_async(transmitter_ip)
+        .await
+        .expect("Failed to connect");
 
-    println!("Connected to: {}", sender_ip);
+    println!("Connected to: {}", transmitter_ip);
 
     let (mut write, mut read) = socket.split();
 
