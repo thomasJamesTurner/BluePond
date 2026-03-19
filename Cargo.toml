@@ -7,11 +7,9 @@ edition = "2024"
 anyhow = "1.0.102"
 axum = { version = "0.8.8", features = ["ws"] }
 futures-util = "0.3.32"
-openssl = "0.10.76"
 rocket = "0.5.1"
 rustls = "0.23.37"
 rustls-pemfile = "2.2.0"
 tokio = { version = "1.50.0", features = ["io-std", "io-util", "macros", "rt"] }
-tokio-openssl = "0.6.5"
 tokio-rustls = "0.26.4"
 tokio-tungstenite = "0.28.0"
