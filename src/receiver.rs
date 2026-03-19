@@ -1,40 +1,42 @@
+use crate::certificates::{load_certs, load_key};
 use futures_util::{SinkExt, StreamExt};
-use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
-use std::pin::Pin;
+use rustls::ServerConfig;
+use std::sync::Arc;
 use tokio::net::TcpListener;
-use tokio_openssl::SslStream;
+use tokio_rustls::TlsAcceptor;
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
 pub async fn receiver(receiver_addr: String) {
-    let mut acceptor = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
+    let certs = load_certs("./ssl/cert.pem");
+    let key = load_key("./ssl/key.pem");
 
-    acceptor
-        .set_private_key_file("./ssl/key.pem", SslFiletype::PEM)
-        .unwrap();
+    let config = ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(certs, key)
+        .expect("Bad server config");
 
-    acceptor
-        .set_certificate_chain_file("./ssl/cert.pem") // or set_certificate_file() can use either
-        .unwrap();
+    let acceptor = TlsAcceptor::from(Arc::new(config));
 
-    let acceptor = acceptor.build();
-    let listener = TcpListener::bind(receiver_addr.as_str())
+    let listener = TcpListener::bind(&receiver_addr)
         .await
-        .expect("Failed to bind to entry point");
+        .expect("Failed to bind");
 
-    println!(
-        "Recipient listening on wss://{}/web_socket",
-        receiver_addr.as_str()
-    );
+    println!("Recipient listening on wss://{}/web_socket", receiver_addr);
 
     while let Ok((stream, _)) = listener.accept().await {
         let sender_ip = stream.peer_addr().unwrap();
-        let ssl_ctx = openssl::ssl::Ssl::new(acceptor.context()).unwrap();
-        let mut ssl_stream = SslStream::new(ssl_ctx, stream).unwrap();
-
-        Pin::new(&mut ssl_stream).accept().await.unwrap();
+        let acceptor = acceptor.clone();
 
         tokio::spawn(async move {
-            let ws_stream = accept_async(ssl_stream)
+            let tls_stream = match acceptor.accept(stream).await {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("TLS accept error: {}", e);
+                    return;
+                }
+            };
+
+            let ws_stream = accept_async(tls_stream)
                 .await
                 .expect("WebSocket handshake failed");
             let (mut write, mut read) = ws_stream.split();
