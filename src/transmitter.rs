@@ -1,3 +1,4 @@
+use crate::certificates::load_certs;
 use futures_util::{SinkExt, StreamExt};
 use rustls::pki_types::{CertificateDer, ServerName};
 use rustls::{ClientConfig, RootCertStore};
@@ -6,8 +7,6 @@ use tokio::io::{self, AsyncBufReadExt, BufReader};
 use tokio::net::TcpStream;
 use tokio::time::Duration;
 use tokio_rustls::TlsConnector;
-
-use crate::certificates::load_certs;
 use tokio_tungstenite::client_async;
 use tokio_tungstenite::tungstenite::Message;
 
